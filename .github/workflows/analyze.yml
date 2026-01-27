@@ -1,0 +1,231 @@
+name: dependahunt
+
+on:
+  workflow_call:
+    inputs:
+      event_name:
+        description: 'Event name (issue_comment, workflow_run, workflow_dispatch)'
+        type: string
+        required: true
+      runs_on:
+        description: 'Runner specification (JSON string). Single: ''"ubuntu-latest"''  Array: ''["self-hosted", "ubuntu-latest"]'''
+        type: string
+        required: true
+      ai_provider:
+        description: 'AI provider to use (claude-vertex/claude-direct/gemini-vertex/gemini-direct)'
+        type: string
+        required: true
+      ai_model:
+        description: 'AI model to use (e.g., claude-sonnet-4-5@20250929, gemini-2.5-pro)'
+        type: string
+        required: true
+      vertex_project_id:
+        description: 'GCP project ID for Vertex AI (required when ai_provider is claude-vertex or gemini-vertex)'
+        type: string
+        required: false
+        default: ''
+      vertex_region:
+        description: 'GCP region for Vertex AI (us-east5 for Claude, us-central1 for Gemini)'
+        type: string
+        required: false
+      trigger_word:
+        description: 'Trigger word to invoke analysis via issue comment'
+        type: string
+        required: false
+        default: '/dependahunt'
+    secrets:
+      APP_ID:
+        required: true
+      APP_PRIVATE_KEY:
+        required: true
+      WORKLOAD_IDENTITY_PROVIDER:
+        required: false
+      SERVICE_ACCOUNT:
+        required: false
+      ANTHROPIC_API_KEY:
+        required: false
+      GEMINI_API_KEY:
+        required: false
+
+concurrency:
+  # comment-trigger -> 1 parallel per PR
+  # auto-scan -> 1 parallel per repository
+  group: dependabot-${{ github.repository }}-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  comment-trigger:
+    if: inputs.event_name == 'issue_comment' &&  github.event.issue.pull_request && github.event.issue.user.login == 'dependabot[bot]' && (startsWith(github.event.comment.body, format('{0} analyze', inputs.trigger_word)) || startsWith(github.event.comment.body, format('{0} re-analyze', inputs.trigger_word)))
+    runs-on: ${{ fromJSON(inputs.runs_on) }}
+
+    outputs:
+      pr_numbers: ${{ steps.parse.outputs.pr_numbers }}
+      additional_comment: ${{ steps.parse.outputs.additional_comment }}
+      include_previous: ${{ steps.parse.outputs.include_previous }}
+
+    steps:
+      - name: Parse analysis command options
+        id: parse
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          TRIGGER_WORD: ${{ inputs.trigger_word }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          # デフォルト値
+          ADDITIONAL_COMMENT=""
+          INCLUDE_PREVIOUS="false"
+
+          # --comment オプションの抽出（ダブルクォート）
+          if [[ "$COMMENT_BODY" =~ --comment[[:space:]]+\"([^\"]+)\" ]]; then
+            ADDITIONAL_COMMENT="${BASH_REMATCH[1]}"
+          # --comment オプションの抽出（シングルクォート）
+          elif [[ "$COMMENT_BODY" =~ --comment[[:space:]]+\'([^\']+)\' ]]; then
+            ADDITIONAL_COMMENT="${BASH_REMATCH[1]}"
+          # --comment オプションの抽出（引用符なし、次の--または行末まで）
+          elif [[ "$COMMENT_BODY" =~ --comment[[:space:]]+([^[:space:]\-][^\-]*) ]]; then
+            ADDITIONAL_COMMENT="${BASH_REMATCH[1]}"
+            # 末尾の空白を削除
+            ADDITIONAL_COMMENT=$(echo "$ADDITIONAL_COMMENT" | sed 's/[[:space:]]*$//')
+          fi
+
+          # --include-previous または re-analyze の確認
+          if [[ "$COMMENT_BODY" =~ (--include-previous|${TRIGGER_WORD}[[:space:]]+re-analyze) ]]; then
+            INCLUDE_PREVIOUS="true"
+          fi
+
+          # GitHub Outputsに設定
+          echo "pr_numbers=[$PR_NUMBER]" >> $GITHUB_OUTPUT
+          echo "additional_comment=$ADDITIONAL_COMMENT" >> $GITHUB_OUTPUT
+          echo "include_previous=$INCLUDE_PREVIOUS" >> $GITHUB_OUTPUT
+
+          # サマリー表示
+          echo "## 🔍 分析パラメータ" >> $GITHUB_STEP_SUMMARY
+          echo "- **追加指示**: ${ADDITIONAL_COMMENT:-なし}" >> $GITHUB_STEP_SUMMARY
+          echo "- **前回分析含む**: $INCLUDE_PREVIOUS" >> $GITHUB_STEP_SUMMARY
+          echo "- **対象PR**: [#${PR_NUMBER}](https://github.com/${REPOSITORY}/pull/${PR_NUMBER})" >> $GITHUB_STEP_SUMMARY
+
+
+  auto-scan:
+    if: inputs.event_name == 'workflow_run' || inputs.event_name == 'workflow_dispatch'
+    runs-on: ${{ fromJSON(inputs.runs_on) }}
+
+    outputs:
+      pr_numbers: ${{ steps.find.outputs.pr_numbers }}
+      additional_comment: ''
+      include_previous: 'false'
+
+    steps:
+      - name: Generate GitHub App Token for target repository
+        id: github-app-token-target
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Find unanalyzed Dependabot PRs
+        id: find
+        env:
+          GITHUB_TOKEN: ${{ steps.github-app-token-target.outputs.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          echo "🔍 Scanning repository: $REPOSITORY"
+
+          # Open PRs を取得
+          PRS=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/$REPOSITORY/pulls?state=open&per_page=100")
+
+          # Dependabot PRで未分析のものを抽出
+          UNANALYZED_PRS=$(echo "$PRS" | jq -r '
+            .[] |
+            select(.user.login == "dependabot[bot]") |
+            select(.body | contains("<!-- CVE_INFO_ADDED -->") | not) |
+            .number
+          ' | jq -s -c '.')
+
+          echo "pr_numbers=$UNANALYZED_PRS" >> $GITHUB_OUTPUT
+
+          # 結果を表示
+          COUNT=$(echo "$UNANALYZED_PRS" | jq 'length')
+          echo "📊 Found $COUNT unanalyzed Dependabot PR(s)"
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "📋 PR numbers: $UNANALYZED_PRS"
+          fi
+
+          # サマリー表示
+          echo "## 🔍 分析パラメータ" >> $GITHUB_STEP_SUMMARY
+          echo "- **追加指示**: なし" >> $GITHUB_STEP_SUMMARY
+          echo "- **前回分析含む**: false" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$COUNT" -gt 0 ]; then
+            PR_LINKS=$(echo "$UNANALYZED_PRS" | jq -r --arg repo "$REPOSITORY" '.[] | "[#\(.)](https://github.com/\($repo)/pull/\(.))"' | paste -sd ',' - | sed 's/,/, /g')
+            echo "- **対象PR**: $PR_LINKS" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **対象PR**: なし" >> $GITHUB_STEP_SUMMARY
+          fi
+  
+  call-analyzer:
+    needs: [comment-trigger, auto-scan]
+    if: always() &&  (needs.comment-trigger.result == 'success' || (needs.auto-scan.result == 'success' && needs.auto-scan.outputs.pr_numbers != '[]'))
+    runs-on: ${{ fromJSON(inputs.runs_on) }}
+    timeout-minutes: 15
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        pr_number: ${{ fromJSON(needs.comment-trigger.outputs.pr_numbers || needs.auto-scan.outputs.pr_numbers) }}
+    steps:          
+      - name: Generate GitHub App Token for target repository
+        id: github-app-token-target
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Get PR base branch
+        id: pr-info
+        env:
+          GITHUB_TOKEN: ${{ steps.github-app-token-target.outputs.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ matrix.pr_number }}
+        run: |
+          BASE_REF=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/$REPOSITORY/pulls/$PR_NUMBER" \
+            --jq '.base.ref')
+          echo "base_ref=$BASE_REF" >> $GITHUB_OUTPUT
+          echo "📍 PR #$PR_NUMBER base branch: $BASE_REF"
+
+      - name: Checkout target repository
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ steps.pr-info.outputs.base_ref }}
+
+      - name: Authenticate to Google Cloud
+        if: inputs.ai_provider == 'claude-vertex' || inputs.ai_provider == 'gemini-vertex'
+        uses: google-github-actions/auth@v1
+        with:
+          workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.SERVICE_ACCOUNT }}
+
+      - uses: m3dev/dependahunt/.github/actions/analyzer@v1
+        with:
+          repository: ${{ github.repository }}
+          pr_number: ${{ matrix.pr_number }}
+          additional_comment: ${{ needs.comment-trigger.outputs.additional_comment || needs.auto-scan.outputs.additional_comment }}
+          include_previous: ${{ needs.comment-trigger.outputs.include_previous || needs.auto-scan.outputs.include_previous }}
+          ai_provider: ${{ inputs.ai_provider }}
+          ai_model: ${{ inputs.ai_model }}
+          vertex_project_id: ${{ inputs.vertex_project_id }}
+          vertex_region: ${{ inputs.vertex_region }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+        env:
+          GITHUB_TOKEN: ${{ steps.github-app-token-target.outputs.token }}

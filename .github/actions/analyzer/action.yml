@@ -1,0 +1,89 @@
+name: 'Dependabot Vulnerability Analyzer'
+description: 'Analyze Dependabot PRs for security vulnerabilities using NVD API and Claude AI'
+author: 'Your Organization'
+
+branding:
+  icon: 'shield'
+  color: 'red'
+
+inputs:
+  repository:
+    description: 'Repository in the format owner/repo'
+    required: true
+  pr_number:
+    description: 'Pull request number to analyze'
+    required: true
+  additional_comment:
+    description: 'Additional instructions for analysis'
+    required: false
+    default: ''
+  include_previous:
+    description: 'Include previous analysis results for re-evaluation'
+    required: false
+    default: 'false'
+  working_directory:
+    description: 'Working directory for code analysis (relative to workspace root)'
+    required: false
+    default: '.'
+  ai_provider:
+    description: 'AI provider to use (claude-vertex/claude-direct/gemini-vertex/gemini-direct/openai)'
+    required: false
+    default: 'claude-vertex'
+  ai_model:
+    description: 'AI model to use (e.g., claude-sonnet-4-5@20250929, gemini-2.5-pro)'
+    required: false
+  ai_timeout:
+    description: 'Timeout for AI responses in seconds'
+    required: false
+    default: '360'
+  vertex_project_id:
+    description: 'GCP project ID for Vertex AI (required when ai_provider is claude-vertex or gemini-vertex)'
+    required: false
+    default: ''
+  vertex_region:
+    description: 'GCP region for Vertex AI (us-east5 for Claude, us-central1 for Gemini)'
+    required: false
+    default: 'us-east5'
+  anthropic_api_key:
+    description: 'Anthropic API Key (required when ai_provider is claude-direct)'
+    required: false
+  gemini_api_key:
+    description: 'Gemini API Key (required when ai_provider is gemini-direct)'
+    required: false
+  openai_api_key:
+    description: 'OpenAI API Key (required when ai_provider is openai)'
+    required: false
+
+outputs:
+  analysis_result:
+    description: 'Vulnerability analysis result'
+  risk_level:
+    description: 'Overall risk level (low/medium/high/critical)'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  env:
+    INPUT_TARGET_REPOSITORY: ${{ inputs.repository }}
+    INPUT_TARGET_PR_NUMBER: ${{ inputs.pr_number }}
+    INPUT_ADDITIONAL_COMMENT: ${{ inputs.additional_comment }}
+    INPUT_INCLUDE_PREVIOUS: ${{ inputs.include_previous }}
+
+    INPUT_AI_PROVIDER: ${{ inputs.ai_provider }}
+    INPUT_AI_MODEL: ${{ inputs.ai_model }}
+    INPUT_AI_TIMEOUT: ${{ inputs.ai_timeout }}
+    INPUT_ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+    INPUT_GEMINI_API_KEY: ${{ inputs.gemini_api_key }}
+    INPUT_OPENAI_API_KEY: ${{ inputs.openai_api_key }}
+
+    INPUT_VERTEX_REGION: ${{ inputs.vertex_region }}
+    INPUT_VERTEX_PROJECT_ID: ${{ inputs.vertex_project_id }}
+
+    # For Vertex AI authentication
+    GOOGLE_APPLICATION_CREDENTIALS: $GOOGLE_APPLICATION_CREDENTIALS
+    CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE: $CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE
+    GOOGLE_CLOUD_PROJECT: $GOOGLE_CLOUD_PROJECT
+    CLOUDSDK_CORE_PROJECT: $CLOUDSDK_CORE_PROJECT
+    CLOUDSDK_PROJECT: $CLOUDSDK_PROJECT
+    GCLOUD_PROJECT: $GCLOUD_PROJECT
+    GCP_PROJECT: $GCP_PROJECT
