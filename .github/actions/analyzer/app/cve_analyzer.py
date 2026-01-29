@@ -74,38 +74,3 @@ def translate_severity_to_japanese(severity: str) -> str:
             return severity.replace(eng.upper(), jp).replace(eng.lower(), jp).replace(eng, jp)
 
     return severity
-
-
-def extract_updated_packages(pr_body: str) -> List[str]:
-    """PR本文から更新対象のパッケージ名を抽出"""
-    packages = []
-
-    # パッケージ名の抽出パターン（@scope/package対応）
-    patterns = [
-        r'Bump\s+(@?[a-zA-Z0-9\-_./]+)\s+from',  # Bump @scope/package from
-        r'Updates?\s+`(@?[a-zA-Z0-9\-_./]+)`\s+from',  # Updates `@scope/package` from
-        r'\[(@?[a-zA-Z0-9\-_./]+)\]\(',  # [@scope/package](url)
-    ]
-
-    for pattern in patterns:
-        matches = re.findall(pattern, pr_body)
-        packages.extend(matches)
-
-    # Dependabot PRのタイトルからも抽出
-    title_patterns = [
-        r'Bump\s+(@?[a-zA-Z0-9\-_./]+)\s+from',
-        r'Update\s+(@?[a-zA-Z0-9\-_./]+)\s+to'
-    ]
-
-    for pattern in title_patterns:
-        matches = re.findall(pattern, pr_body)
-        packages.extend(matches)
-
-    # 重複を除去し、有効なパッケージ名のみを保持
-    unique_packages = list(set(packages))
-    # 短すぎる名前やURLは除外
-    filtered_packages = [pkg for pkg in unique_packages
-                        if len(pkg) > 1 and not pkg.startswith('http')
-                        and not pkg.endswith('.git')]
-
-    return filtered_packages

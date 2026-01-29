@@ -3,8 +3,8 @@ AI分析プロンプトの生成
 """
 
 from typing import Dict, Any, List
-
-from cve_analyzer import translate_severity_to_japanese, extract_updated_packages
+from cve_analyzer import translate_severity_to_japanese
+from version_utils import extract_version_info
 
 
 def create_ai_analysis_prompt(vuln_data: List[Dict[str, Any]], pr_body: str = "",
@@ -23,7 +23,7 @@ def create_ai_analysis_prompt(vuln_data: List[Dict[str, Any]], pr_body: str = ""
         return create_followup_question_prompt(vuln_data, previous_analysis, additional_comment)
 
     # PR本文から更新対象パッケージを抽出
-    target_packages = extract_updated_packages(pr_body)
+    target_package = extract_version_info(pr_body)
 
     prompt = f"""# ペルソナ設定
 
@@ -71,7 +71,7 @@ def create_ai_analysis_prompt(vuln_data: List[Dict[str, Any]], pr_body: str = ""
 
 ## 分析対象
 
-**対象パッケージ**: {', '.join(target_packages) if target_packages else 'パッケージ名を特定できませんでした'}
+**対象パッケージ**: {target_package["package"] if target_package else 'パッケージ名を特定できませんでした'}
 
 **CVE脆弱性詳細**:
 """

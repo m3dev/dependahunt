@@ -1,6 +1,6 @@
 # dependahunt
-Dependabotが作成したPRを自動的に分析し、脆弱性の影響をAIで評価するワークフローです。
-前提としてDependabot alertsが導入先のリポジトリで有効化されている必要があります。
+Dependabot/Renovateが作成したPRを自動的に分析し、脆弱性の影響をAIで評価するワークフローです。
+前提としてDependabot alertsが有効になっている必要があります。Renovateおよび本ツールは脆弱性情報のソースとしてDependabot alertsを参照しているため、Renovateを利用する場合も有効にする必要があります。
 
 ## 導入方法
 ### GitHub Appの作成
@@ -40,6 +40,7 @@ jobs:
       ai_model: 'claude-sonnet-4-5@20250929'
       vertex_project_id: '(your project id)'
       vertex_region: '(your region)'
+      pr_creator: '(your Dependabot or Renovate bot name)'
     secrets:
       APP_ID: ${{ secrets.APP_ID }}
       APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
@@ -62,6 +63,7 @@ jobs:
 | `ai_model` | ○ | 使用するAIモデル。プロバイダに応じて適切なモデルを指定。例: `claude-sonnet-4-5@20250929`, `gemini-2.5-pro` |
 | `vertex_project_id` | △ | Vertex AIを使用するGCPプロジェクトID。Vertex AI使用時（`ai_provider`が`claude-vertex`または`gemini-vertex`の場合）は必須。 |
 | `vertex_region` | △ | Vertex AIのGCPリージョン |
+| `pr_creator` | - | チェック対象にするPRの作成者名。ここで指定したユーザが作成したPRがチェック対象になる。デフォルトは `dependabot[bot]` |
 | `trigger_word` | - | PRコメントで分析を起動するトリガーワード。デフォルトは`/dependahunt` |
 
 ##### `secrets` シークレット
@@ -75,14 +77,37 @@ jobs:
 | `ANTHROPIC_API_KEY` | △ | Anthropic APIキー（例: `sk-ant-api03-...`）。`ai_provider`が`claude-direct`の場合に必須。 |
 | `GEMINI_API_KEY` | △ | Google AI Studio APIキー（例: `AIzaSy...`）。`ai_provider`が`gemini-direct`の場合に必須。 |
 
+### `renovate.json`の編集（Renovateを利用する場合のみ）
+Renovateを使用する場合、PR本文内にパッケージ情報を埋め込む必要があります。
+`packageRules` 内に埋め込み用のルールを追加してください。また `schedule` の設定によらず迅速にセキュリティパッチ用のPRを作成できるよう `vulnerabilityAlerts` も有効にしておくことを推奨します。
+
+```json
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": ["*"],
+      "prBodyNotes": [
+        "<!-- dependahunt\npackageName: {{packageName}}\ncurrentVersion: {{currentVersion}}\nnewVersion: {{newVersion}}\n -->"
+      ]
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true
+  },
+}
+```
 
 ## 使用方法
 ### PR作成時の自動チェック
-DependabotがパッチPRを作成したタイミング（Dependabotのチェックが行われた後）で自動的に実行され、未分析のPRの内容が分析されます。無効化するにはYAMLの `workflow_run` キーを削除してください。
+Dependabot/RenovateがパッチPRを作成したタイミングで自動的に実行され、未分析のPRの内容が分析されます。無効化するにはYAMLの `workflow_run` キーを削除してください。
 なお、Dependabot自体はデフォルトブランチを分析対象としています。対象ブランチを変更する場合は [`dependabot.yaml`](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#target-branch-)で設定してください。
 
 ### PRコメント内での手動チェック
-Dependabotが作成したPRのコメントに特定のコマンドを入力することで、そのPRの内容が分析されます。
+Dependabot/Renovateが作成したPRのコメントに特定のコマンドを入力することで、そのPRの内容が分析されます。
 
 #### コマンド
 - `/dependahunt analyze [--comment "追加の指示"] [--include-previous]`
@@ -96,6 +121,10 @@ Dependabotが作成したPRのコメントに特定のコマンドを入力す�
 
 ### GitHubのUI上からの手動チェック（一括実行したい場合など）
 GitHubのActions画面から追加したワークフローを選択し、「Run workflow」を押下すると、未分析のPRに対して実行されます。
+
+## 制限事項
+- 1つのPRに複数のパッケージのアップデートが混在している場合は非対応です。Dependabot/Renovateの設定で、各パッケージごとに個別のPRを作成するようにしてください。
+- 本ツールはリポジトリのDependabot alertsに記録されている脆弱性情報を参照して分析を行います。Renovateが対応していてもDependabotが対応していないパッケージマネージャの場合、脆弱性情報が見つからず脆弱性の影響有無を正しく判断できません。
 
 ## ⚠️注意
 公開リポジトリなど、信頼できないメンバーが閲覧できるリポジトリでこのワークフローを使用しないでください。

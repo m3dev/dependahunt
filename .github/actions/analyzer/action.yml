@@ -1,5 +1,5 @@
-name: 'Dependabot Vulnerability Analyzer'
-description: 'Analyze Dependabot PRs for security vulnerabilities using NVD API and Claude AI'
+name: 'Dependabot/Renovate Vulnerability Analyzer'
+description: 'Analyze Dependabot/Renovate PRs for security vulnerabilities using NVD API and Claude AI'
 author: 'Your Organization'
 
 branding:

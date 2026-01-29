@@ -16,6 +16,7 @@ def extract_version_info(pr_body: str) -> Optional[Dict[str, str]]:
         {'package': 'lodash', 'from': '4.17.20', 'to': '4.17.21'}
         抽出できない場合は None
     """
+    # for dependabot
     # パターン1: "Bumps [package](URL) from [version] to [version]" (Markdownリンク形式)
     pattern1 = r'Bumps?\s+\[(@?[a-zA-Z0-9\-_./]+)\]\([^)]+\)\s+from\s+([\d]+(?:\.[\d]+)*(?:-[a-zA-Z0-9.]+)?)\s+to\s+([\d]+(?:\.[\d]+)*(?:-[a-zA-Z0-9.]+)?)'
     match = re.search(pattern1, pr_body, re.IGNORECASE)
@@ -30,6 +31,17 @@ def extract_version_info(pr_body: str) -> Optional[Dict[str, str]]:
     # パターン2: "Bumps package from [version] to [version]" (プレーンテキスト)
     pattern2 = r'Bumps?\s+(@?[a-zA-Z0-9\-_./]+)\s+from\s+([\d]+(?:\.[\d]+)*(?:-[a-zA-Z0-9.]+)?)\s+to\s+([\d]+(?:\.[\d]+)*(?:-[a-zA-Z0-9.]+)?)'
     match = re.search(pattern2, pr_body, re.IGNORECASE)
+
+    if match:
+        return {
+            'package': match.group(1),
+            'from': match.group(2),
+            'to': match.group(3)
+        }
+
+    # for renovate
+    pattern3 = r'<!-- dependahunt\npackageName: (\S+)\ncurrentVersion: (\S+)\nnewVersion: (\S+)'
+    match = re.search(pattern3, pr_body)
 
     if match:
         return {

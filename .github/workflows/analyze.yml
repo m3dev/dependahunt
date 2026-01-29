@@ -28,6 +28,11 @@ on:
         description: 'GCP region for Vertex AI (us-east5 for Claude, us-central1 for Gemini)'
         type: string
         required: false
+      pr_creator:
+        description: 'PR creator username to filter (e.g., dependabot[bot], your-renovate-bot-name[bot])'
+        type: string
+        default: 'dependabot[bot]'
+        required: false
       trigger_word:
         description: 'Trigger word to invoke analysis via issue comment'
         type: string
@@ -50,12 +55,16 @@ on:
 concurrency:
   # comment-trigger -> 1 parallel per PR
   # auto-scan -> 1 parallel per repository
-  group: dependabot-${{ github.repository }}-${{ github.event.issue.number }}
+  group: dependahunt-${{ github.repository }}-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
   comment-trigger:
-    if: inputs.event_name == 'issue_comment' &&  github.event.issue.pull_request && github.event.issue.user.login == 'dependabot[bot]' && (startsWith(github.event.comment.body, format('{0} analyze', inputs.trigger_word)) || startsWith(github.event.comment.body, format('{0} re-analyze', inputs.trigger_word)))
+    if:  >-
+      inputs.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      (github.event.issue.user.login == inputs.pr_creator) && 
+      (startsWith(github.event.comment.body, format('{0} analyze', inputs.trigger_word)) || startsWith(github.event.comment.body, format('{0} re-analyze', inputs.trigger_word)))
     runs-on: ${{ fromJSON(inputs.runs_on) }}
 
     outputs:
@@ -124,33 +133,23 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
-      - name: Find unanalyzed Dependabot PRs
+      - name: Find unanalyzed PRs
         id: find
         env:
           GITHUB_TOKEN: ${{ steps.github-app-token-target.outputs.token }}
           REPOSITORY: ${{ github.repository }}
+          PR_CREATOR: ${{ inputs.pr_creator }}
         run: |
           echo "🔍 Scanning repository: $REPOSITORY"
 
-          # Open PRs を取得
-          PRS=$(gh api \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "/repos/$REPOSITORY/pulls?state=open&per_page=100")
-
-          # Dependabot PRで未分析のものを抽出
-          UNANALYZED_PRS=$(echo "$PRS" | jq -r '
-            .[] |
-            select(.user.login == "dependabot[bot]") |
-            select(.body | contains("<!-- CVE_INFO_ADDED -->") | not) |
-            .number
-          ' | jq -s -c '.')
+          # 未分析のPRを抽出
+          UNANALYZED_PRS=$(gh pr list --repo $REPOSITORY --author "$PR_CREATOR" --state open --limit 100 --json number,body --jq '.[] | select(.body | contains("<!-- CVE_INFO_ADDED -->") | not) | .number' | jq -s -c '.')
 
           echo "pr_numbers=$UNANALYZED_PRS" >> $GITHUB_OUTPUT
 
           # 結果を表示
           COUNT=$(echo "$UNANALYZED_PRS" | jq 'length')
-          echo "📊 Found $COUNT unanalyzed Dependabot PR(s)"
+          echo "📊 Found $COUNT unanalyzed PR(s)"
 
           if [ "$COUNT" -gt 0 ]; then
             echo "📋 PR numbers: $UNANALYZED_PRS"
@@ -194,11 +193,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ matrix.pr_number }}
         run: |
-          BASE_REF=$(gh api \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "/repos/$REPOSITORY/pulls/$PR_NUMBER" \
-            --jq '.base.ref')
+          BASE_REF=$(gh pr view $PR_NUMBER --repo $REPOSITORY --json baseRefName --jq '.baseRefName')
           echo "base_ref=$BASE_REF" >> $GITHUB_OUTPUT
           echo "📍 PR #$PR_NUMBER base branch: $BASE_REF"
 
