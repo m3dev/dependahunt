@@ -6,7 +6,7 @@ set -e
 export PYTHONUNBUFFERED=1
 
 # デバッグ情報を表示
-echo "=== Dependabot Vulnerability Analyzer ==="
+echo "=== Dependabot/Renovate Vulnerability Analyzer ==="
 echo "Repository: $INPUT_TARGET_REPOSITORY"
 echo "PR Number: $INPUT_TARGET_PR_NUMBER"
 echo "Comment: $INPUT_COMMENT"
