@@ -17,8 +17,8 @@ Dependabot/Renovateが作成したPRを自動的に分析し、脆弱性の影�
 name: dependahunt Caller
 
 on:
-  workflow_run: # DependabotのPR作成時（Dependabotのチェックが行われた後）にトリガする
-    workflows: ["Dependabot Updates"]
+  workflow_run: # Dependabot/RenovateのPR作成時（チェックが行われた後）にトリガする
+    workflows: ["Dependabot Updates", "(Your Renovate Workflow Name)"]
     types: [completed]
   issue_comment: # PRコメント時にトリガする
     types: [created]
@@ -32,7 +32,7 @@ permissions:
 
 jobs:
   run:
-    uses: m3dev/dependahunt/.github/workflows/analyze.yml@main
+    uses: m3dev/dependahunt/.github/workflows/analyze.yml@v1
     with:
       runs_on: '"ubuntu-latest"'
       event_name: ${{ github.event_name }}
@@ -78,28 +78,20 @@ jobs:
 | `GEMINI_API_KEY` | △ | Google AI Studio APIキー（例: `AIzaSy...`）。`ai_provider`が`gemini-direct`の場合に必須。 |
 
 ### `renovate.json`の編集（Renovateを利用する場合のみ）
-Renovateを使用する場合、PR本文内にパッケージ情報を埋め込む必要があります。
-`packageRules` 内に埋め込み用のルールを追加してください。また `schedule` の設定によらず迅速にセキュリティパッチ用のPRを作成できるよう `vulnerabilityAlerts` も有効にしておくことを推奨します。
+Renovateを使用する場合、PR本文内にパッケージ情報を埋め込む必要があります。`extends` に `github>m3dev/dependahunt#v1` を追加してください。
+この設定により `vulnerabilityAlerts` が有効化され、 `prBodyNotes` にパッケージ情報が埋め込まれるようになります。
 
 ```json
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    "github>m3dev/dependahunt#v1"
   ],
-  "packageRules": [
-    {
-      "matchPackageNames": ["*"],
-      "prBodyNotes": [
-        "<!-- dependahunt\npackageName: {{packageName}}\ncurrentVersion: {{currentVersion}}\nnewVersion: {{newVersion}}\n -->"
-      ]
-    }
-  ],
-  "vulnerabilityAlerts": {
-    "enabled": true
-  },
 }
 ```
+上記のShareable Config Presetsを利用せず細かくルールをカスタマイズする場合は、 `<!-- dependahunt:target-package {{{ toJSON (toObject 'packageName' packageName 'depName' depName 'currentVersion' currentVersion 'newVersion' newVersion) }}} -->` を脆弱性アップデートの `prBodyNotes` に追加してください。
+
 
 ## 使用方法
 ### PR作成時の自動チェック
@@ -110,12 +102,16 @@ Dependabot/RenovateがパッチPRを作成したタイミングで自動的に�
 Dependabot/Renovateが作成したPRのコメントに特定のコマンドを入力することで、そのPRの内容が分析されます。
 
 #### コマンド
-- `/dependahunt analyze [--comment "追加の指示"] [--include-previous]`
+- `/dependahunt analyze [パッケージ名] [--comment "追加の指示"] [--include-previous]`
+  - `パッケージ名`
+    1つのPRに含まれる複数のパッケージのうち特定のパッケージのみを再分析したい場合にパッケージ名を指定します。例：`/dependahunt analyze lodash`
+    省略した場合はPRに含まれる全てのパッケージを分析します。
+    なお、1つのPRに複数のパッケージのアップデートが混在している設定は非推奨です。
   - `--comment`
     分析の際に重視しておいてほしい点や質問などの追加の指示を与えることができます。
   - `--include-previous`
     直近の分析結果も今回の分析に含めます。 `--comment`と組み合わせることで、直近の結果を踏まえた指示（例：他の対策はないか、など）を与えることができます。
-- `/dependahunt re-analyze [--comment "追加の指示"]`
+- `/dependahunt re-analyze [パッケージ名] [--comment "追加の指示"]`
   `/dependahunt analyze --include-previous` のシンタックスシュガーです。
 
 
@@ -123,7 +119,7 @@ Dependabot/Renovateが作成したPRのコメントに特定のコマンドを�
 GitHubのActions画面から追加したワークフローを選択し、「Run workflow」を押下すると、未分析のPRに対して実行されます。
 
 ## 制限事項
-- 1つのPRに複数のパッケージのアップデートが混在している場合は非対応です。Dependabot/Renovateの設定で、各パッケージごとに個別のPRを作成するようにしてください。
+- 1つのPRに複数のパッケージのアップデートが混在している設定は非推奨です。Dependabot/Renovateの設定で、各パッケージごとに個別のPRを作成するようにしてください。
 - 本ツールはリポジトリのDependabot alertsに記録されている脆弱性情報を参照して分析を行います。Renovateが対応していてもDependabotが対応していないパッケージマネージャの場合、脆弱性情報が見つからず脆弱性の影響有無を正しく判断できません。
 
 ## ⚠️注意

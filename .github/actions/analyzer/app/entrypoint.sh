@@ -13,6 +13,7 @@ echo "Comment: $INPUT_COMMENT"
 echo "Silent: $INPUT_SILENT"
 echo "Additional Comment: $INPUT_ADDITIONAL_COMMENT"
 echo "Include Previous: $INPUT_INCLUDE_PREVIOUS"
+echo "Package Name: $INPUT_PACKAGE_NAME"
 echo "=========================================="
 
 # Claude CLIの存在確認とバージョン表示
@@ -64,6 +65,11 @@ fi
 # 前回分析を含める
 if [ "$INPUT_INCLUDE_PREVIOUS" = "true" ]; then
     FLAGS="$FLAGS --include-previous"
+fi
+
+# パッケージ名を指定
+if [ -n "$INPUT_PACKAGE_NAME" ]; then
+    FLAGS="$FLAGS --package-name \"$INPUT_PACKAGE_NAME\""
 fi
 
 # 作業ディレクトリに移動

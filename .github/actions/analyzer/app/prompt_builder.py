@@ -4,16 +4,15 @@ AI分析プロンプトの生成
 
 from typing import Dict, Any, List
 from cve_analyzer import translate_severity_to_japanese
-from version_utils import extract_version_info
 
 
-def create_ai_analysis_prompt(vuln_data: List[Dict[str, Any]], pr_body: str = "",
+def create_ai_analysis_prompt(vuln_data: List[Dict[str, Any]], version_info: Dict[str, str],
                               additional_comment: str = None, previous_analysis: str = None) -> str:
     """CVE脆弱機能分析用のプロンプトを作成
 
     Args:
         vuln_data: 脆弱性データのリスト
-        pr_body: PR本文
+        version_info: パッケージバージョン情報 {'package': 'name', 'from': '1.0', 'to': '2.0'} (必須)
         additional_comment: 追加の分析指示
         previous_analysis: 前回の分析結果
     """
@@ -22,8 +21,8 @@ def create_ai_analysis_prompt(vuln_data: List[Dict[str, Any]], pr_body: str = ""
     if previous_analysis and additional_comment:
         return create_followup_question_prompt(vuln_data, previous_analysis, additional_comment)
 
-    # PR本文から更新対象パッケージを抽出
-    target_package = extract_version_info(pr_body)
+    # 引数として渡されたパッケージ情報を使用
+    target_package = version_info
 
     prompt = f"""# ペルソナ設定
 
@@ -175,7 +174,7 @@ def create_ai_analysis_prompt(vuln_data: List[Dict[str, Any]], pr_body: str = ""
 
 ## 出力形式（絶対遵守）
 
-**重要**: ここで指示を与えたもの以外は絶対に何も出力しないでください。
+**重要**: 思考過程のログは出力しないでください。
 
 あなたの応答は必ず次の「---RISK_ASSESSMENT_START---」から「---RISK_ASSESSMENT_END---」までの構造化ヘッダーで開始してください。構造化ヘッダは必ずコメントアウト（<!-- 〜〜〜 -->）したうえで出力してください。この出力はPythonコードでパースされます。
 
