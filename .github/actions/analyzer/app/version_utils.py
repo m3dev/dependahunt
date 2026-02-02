@@ -3,55 +3,56 @@
 """
 
 import re
-from typing import Dict, Optional, Tuple
+from typing import Dict, List
+from packaging.specifiers import SpecifierSet
+from packaging.version import Version
+import markers
 
 
-def extract_version_info(pr_body: str) -> Optional[Dict[str, str]]:
-    """PR本文からパッケージ名とバージョン情報を抽出
+def extract_all_version_info(pr_body: str) -> List[Dict[str, str]]:
+    """PR本文から全てのパッケージ名とバージョン情報を抽出
 
     Args:
         pr_body: PR本文
 
     Returns:
-        {'package': 'lodash', 'from': '4.17.20', 'to': '4.17.21'}
-        抽出できない場合は None
+        [{'package': 'lodash', 'from': '4.17.20', 'to': '4.17.21'}, ...]
+        抽出できない場合は空のリスト
     """
-    # for dependabot
+
+    # for renovate - dependahunt:target-package 形式を検索
+    package_infos = markers.TARGET_PACKAGE.extract_all(pr_body)
+    if package_infos:
+        return [{
+            'package': package_info.get('packageName', ''),
+            'from': package_info.get('currentVersion', ''),
+            'to': package_info.get('newVersion', '')
+        } for package_info in package_infos]
+
+    # for dependabot - 従来の単一パッケージ形式もチェック
     # パターン1: "Bumps [package](URL) from [version] to [version]" (Markdownリンク形式)
     pattern1 = r'Bumps?\s+\[(@?[a-zA-Z0-9\-_./]+)\]\([^)]+\)\s+from\s+([\d]+(?:\.[\d]+)*(?:-[a-zA-Z0-9.]+)?)\s+to\s+([\d]+(?:\.[\d]+)*(?:-[a-zA-Z0-9.]+)?)'
     match = re.search(pattern1, pr_body, re.IGNORECASE)
 
     if match:
-        return {
+        return [{
             'package': match.group(1),
             'from': match.group(2),
             'to': match.group(3)
-        }
+        }]
 
     # パターン2: "Bumps package from [version] to [version]" (プレーンテキスト)
     pattern2 = r'Bumps?\s+(@?[a-zA-Z0-9\-_./]+)\s+from\s+([\d]+(?:\.[\d]+)*(?:-[a-zA-Z0-9.]+)?)\s+to\s+([\d]+(?:\.[\d]+)*(?:-[a-zA-Z0-9.]+)?)'
     match = re.search(pattern2, pr_body, re.IGNORECASE)
 
     if match:
-        return {
+        return [{
             'package': match.group(1),
             'from': match.group(2),
             'to': match.group(3)
-        }
+        }]
 
-    # for renovate
-    pattern3 = r'<!-- dependahunt\npackageName: (\S+)\ncurrentVersion: (\S+)\nnewVersion: (\S+)'
-    match = re.search(pattern3, pr_body)
-
-    if match:
-        return {
-            'package': match.group(1),
-            'from': match.group(2),
-            'to': match.group(3)
-        }
-
-    return None
-
+    return []
 
 def compare_versions(v1: str, v2: str) -> int:
     """セマンティックバージョンを比較
@@ -65,44 +66,21 @@ def compare_versions(v1: str, v2: str) -> int:
         v1 == v2: 0
         v1 > v2: 1
     """
-    def parse_version(v: str) -> Tuple[list, Optional[str]]:
-        # プレリリース版対応: 4.17.20-alpha.1
-        parts = v.split('-')
-        main_version = parts[0]
-        prerelease = parts[1] if len(parts) > 1 else None
+    try:
+        version1 = Version(v1)
+        version2 = Version(v2)
 
-        # メインバージョンを数値化
-        nums = [int(x) for x in main_version.split('.')]
-
-        return (nums, prerelease)
-
-    v1_parts, v1_pre = parse_version(v1)
-    v2_parts, v2_pre = parse_version(v2)
-
-    # パディング（長さを揃える）
-    max_len = max(len(v1_parts), len(v2_parts))
-    v1_parts += [0] * (max_len - len(v1_parts))
-    v2_parts += [0] * (max_len - len(v2_parts))
-
-    # メインバージョン比較
-    for n1, n2 in zip(v1_parts, v2_parts):
-        if n1 < n2:
+        if version1 < version2:
             return -1
-        elif n1 > n2:
+        elif version1 > version2:
             return 1
-
-    # プレリリース版の扱い
-    if v1_pre is None and v2_pre is None:
-        return 0
-    elif v1_pre is None:
-        return 1  # 正式版 > プレリリース版
-    elif v2_pre is None:
-        return -1  # プレリリース版 < 正式版
-    else:
-        # 両方プレリリース版の場合は文字列比較
-        if v1_pre < v2_pre:
+        else:
+            return 0
+    except Exception:
+        # バージョンのパースに失敗した場合は文字列比較にフォールバック
+        if v1 < v2:
             return -1
-        elif v1_pre > v2_pre:
+        elif v1 > v2:
             return 1
         else:
             return 0
@@ -118,30 +96,14 @@ def version_in_range(version: str, range_str: str) -> bool:
     Returns:
         範囲に含まれる場合 True
     """
-    # カンマで分割して各条件をチェック
-    conditions = [c.strip() for c in range_str.split(',')]
-
-    for condition in conditions:
-        # ">= 4.0.0" のような条件をパース
-        if condition.startswith('>='):
-            compare_ver = condition[2:].strip()
-            if compare_versions(version, compare_ver) < 0:
-                return False
-        elif condition.startswith('<='):
-            compare_ver = condition[2:].strip()
-            if compare_versions(version, compare_ver) > 0:
-                return False
-        elif condition.startswith('>'):
-            compare_ver = condition[1:].strip()
-            if compare_versions(version, compare_ver) <= 0:
-                return False
-        elif condition.startswith('<'):
-            compare_ver = condition[1:].strip()
-            if compare_versions(version, compare_ver) >= 0:
-                return False
-        elif condition.startswith('='):
-            compare_ver = condition[1:].strip()
-            if compare_versions(version, compare_ver) != 0:
-                return False
-
-    return True
+    try:
+        # 範囲条件をパース
+        specifiers = SpecifierSet(range_str)
+        # 現在のバージョンをパース
+        version = Version(version)
+        
+        # 範囲に含まれるか判定
+        return version in specifiers
+    except Exception as e:
+        print(f"Error parsing versions: {e}")
+        return False

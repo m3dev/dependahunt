@@ -1,1 +1,2 @@
-google-genai>=0.3.0
+packaging==26.0
+PyGithub==2.8.1

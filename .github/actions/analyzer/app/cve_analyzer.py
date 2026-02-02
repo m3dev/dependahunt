@@ -3,7 +3,6 @@ CVE情報の取得と分析
 """
 
 import json
-import re
 import urllib.request
 from typing import Dict, Any, List
 

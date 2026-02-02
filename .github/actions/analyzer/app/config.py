@@ -4,12 +4,6 @@
 
 import os
 
-# API タイムアウト設定
-DEFAULT_AI_TIMEOUT = 360  # 秒
-
-# CVE情報マーカー
-CVE_INFO_MARKER = "<!-- CVE_INFO_ADDED -->"
-
 # リスクレベルアイコン
 RISK_ICONS = {
     "極低": "🟢",
@@ -28,13 +22,6 @@ SEVERITY_MAP = {
     'Unknown': '不明'
 }
 
-
-def get_env_bool(key: str, default: bool = False) -> bool:
-    """環境変数からbool値を取得"""
-    value = os.getenv(key)
-    if value is None:
-        return default
-    return value.lower() in ('1', 'true', 'yes', 'on')
 
 def get_env_int(key: str, default: int) -> int:
     """環境変数からint値を取得"""

@@ -71,6 +71,7 @@ jobs:
       pr_numbers: ${{ steps.parse.outputs.pr_numbers }}
       additional_comment: ${{ steps.parse.outputs.additional_comment }}
       include_previous: ${{ steps.parse.outputs.include_previous }}
+      package_name: ${{ steps.parse.outputs.package_name }}
 
     steps:
       - name: Parse analysis command options
@@ -84,6 +85,14 @@ jobs:
           # デフォルト値
           ADDITIONAL_COMMENT=""
           INCLUDE_PREVIOUS="false"
+          PACKAGE_NAME=""
+
+          # パッケージ名の抽出
+          # /dependahunt analyze <package_name> の形式から抽出
+          # analyze の後、--オプションの前までのテキストを取得
+          if [[ "$COMMENT_BODY" =~ ${TRIGGER_WORD}[[:space:]]+(analyze|re-analyze)[[:space:]]+([^[:space:]\-]+) ]]; then
+            PACKAGE_NAME="${BASH_REMATCH[2]}"
+          fi
 
           # --comment オプションの抽出（ダブルクォート）
           if [[ "$COMMENT_BODY" =~ --comment[[:space:]]+\"([^\"]+)\" ]]; then
@@ -107,9 +116,11 @@ jobs:
           echo "pr_numbers=[$PR_NUMBER]" >> $GITHUB_OUTPUT
           echo "additional_comment=$ADDITIONAL_COMMENT" >> $GITHUB_OUTPUT
           echo "include_previous=$INCLUDE_PREVIOUS" >> $GITHUB_OUTPUT
+          echo "package_name=$PACKAGE_NAME" >> $GITHUB_OUTPUT
 
           # サマリー表示
           echo "## 🔍 分析パラメータ" >> $GITHUB_STEP_SUMMARY
+          echo "- **パッケージ名**: ${PACKAGE_NAME:-全て}" >> $GITHUB_STEP_SUMMARY
           echo "- **追加指示**: ${ADDITIONAL_COMMENT:-なし}" >> $GITHUB_STEP_SUMMARY
           echo "- **前回分析含む**: $INCLUDE_PREVIOUS" >> $GITHUB_STEP_SUMMARY
           echo "- **対象PR**: [#${PR_NUMBER}](https://github.com/${REPOSITORY}/pull/${PR_NUMBER})" >> $GITHUB_STEP_SUMMARY
@@ -123,6 +134,7 @@ jobs:
       pr_numbers: ${{ steps.find.outputs.pr_numbers }}
       additional_comment: ''
       include_previous: 'false'
+      package_name: ''
 
     steps:
       - name: Generate GitHub App Token for target repository
@@ -143,7 +155,7 @@ jobs:
           echo "🔍 Scanning repository: $REPOSITORY"
 
           # 未分析のPRを抽出
-          UNANALYZED_PRS=$(gh pr list --repo $REPOSITORY --author "$PR_CREATOR" --state open --limit 100 --json number,body --jq '.[] | select(.body | contains("<!-- CVE_INFO_ADDED -->") | not) | .number' | jq -s -c '.')
+          UNANALYZED_PRS=$(gh pr list --repo $REPOSITORY --author "$PR_CREATOR" --state open --limit 100 --json number,body --jq '.[] | select(.body | contains("<!-- dependahunt:analyzed -->") | not) | .number' | jq -s -c '.')
 
           echo "pr_numbers=$UNANALYZED_PRS" >> $GITHUB_OUTPUT
 
@@ -216,6 +228,7 @@ jobs:
           pr_number: ${{ matrix.pr_number }}
           additional_comment: ${{ needs.comment-trigger.outputs.additional_comment || needs.auto-scan.outputs.additional_comment }}
           include_previous: ${{ needs.comment-trigger.outputs.include_previous || needs.auto-scan.outputs.include_previous }}
+          package_name: ${{ needs.comment-trigger.outputs.package_name || needs.auto-scan.outputs.package_name }}
           ai_provider: ${{ inputs.ai_provider }}
           ai_model: ${{ inputs.ai_model }}
           vertex_project_id: ${{ inputs.vertex_project_id }}

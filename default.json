@@ -1,0 +1,8 @@
+{
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "prBodyNotes": [
+      "<!-- dependahunt:target-package {{{ toJSON (toObject 'packageName' packageName 'depName' depName 'currentVersion' currentVersion 'newVersion' newVersion) }}} -->"
+    ]
+  }
+}

@@ -21,6 +21,10 @@ inputs:
     description: 'Include previous analysis results for re-evaluation'
     required: false
     default: 'false'
+  package_name:
+    description: 'Specific package name to analyze (if empty, analyze all packages in the PR)'
+    required: false
+    default: ''
   working_directory:
     description: 'Working directory for code analysis (relative to workspace root)'
     required: false
@@ -68,6 +72,7 @@ runs:
     INPUT_TARGET_PR_NUMBER: ${{ inputs.pr_number }}
     INPUT_ADDITIONAL_COMMENT: ${{ inputs.additional_comment }}
     INPUT_INCLUDE_PREVIOUS: ${{ inputs.include_previous }}
+    INPUT_PACKAGE_NAME: ${{ inputs.package_name }}
 
     INPUT_AI_PROVIDER: ${{ inputs.ai_provider }}
     INPUT_AI_MODEL: ${{ inputs.ai_model }}
