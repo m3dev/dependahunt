@@ -159,40 +159,6 @@ def get_previous_analysis(repo: str, pr_number: int, package_name: str, github_t
         return ""
 
 
-def mark_pr_as_analyzed(repo: str, pr_number: int, github_token: str) -> bool:
-    """PR本文にマーカーを追記
-
-    Args:
-        repo: リポジトリ名 (owner/repo形式)
-        pr_number: PR番号
-        github_token: GitHub トークン
-
-    Returns:
-        追記に成功した場合True
-    """
-    try:
-        g = Github(github_token)
-        repository = g.get_repo(repo)
-        pr = repository.get_pull(pr_number)
-        pr_body = pr.body or ''
-
-        # 既に追記済みかチェック
-        if markers.ANALYZED.exists_in(pr_body):
-            print("ℹ️ マーカーは既にPR本文に追記済みです")
-            return True
-
-        print("📝 PR本文にマーカーを追記中...")
-        # マーカーだけ追加して重複実行を防止
-        new_body = pr_body + f"\n\n{markers.ANALYZED.create()}\n"
-        pr.edit(body=new_body)
-        print(f"✅ PR本文を更新しました")
-        return True
-
-    except Exception as e:
-        print(f"❌ PR本文更新エラー: {e}")
-        return False
-
-
 def post_github_comment(repo: str, pr_number: int, comment: str, github_token: str) -> bool:
     """GitHub APIを使ってPRにコメントを投稿"""
     try:
