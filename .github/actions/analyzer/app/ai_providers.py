@@ -312,7 +312,9 @@ def create_ai_provider(
     elif provider_type == "claude-bedrock":
         if not model:
             raise ValueError("Model name is required for claude-bedrock provider")
-        return ClaudeBedrockProvider(aws_region or "us-east-1", model)
+        if not aws_region:
+            raise ValueError("AWS region is required for claude-bedrock provider")
+        return ClaudeBedrockProvider(aws_region, model)
 
     elif provider_type == "gemini-direct":
         if not gemini_api_key:
