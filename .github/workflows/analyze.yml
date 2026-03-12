@@ -12,7 +12,7 @@ on:
         type: string
         required: true
       ai_provider:
-        description: 'AI provider to use (claude-vertex/claude-direct/gemini-vertex/gemini-direct)'
+        description: 'AI provider to use (claude-vertex/claude-direct/claude-bedrock/gemini-vertex/gemini-direct)'
         type: string
         required: true
       ai_model:
@@ -28,6 +28,16 @@ on:
         description: 'GCP region for Vertex AI (us-east5 for Claude, us-central1 for Gemini)'
         type: string
         required: false
+      aws_role_arn:
+        description: 'AWS IAM Role ARN for Bedrock access (required when ai_provider is claude-bedrock)'
+        type: string
+        required: false
+        default: ''
+      aws_region:
+        description: 'AWS region for Bedrock (required when ai_provider is claude-bedrock)'
+        type: string
+        required: false
+        default: 'us-east-1'
       pr_creator:
         description: 'PR creator username to filter (e.g., dependabot[bot], your-renovate-bot-name[bot])'
         type: string
@@ -228,6 +238,13 @@ jobs:
           workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.SERVICE_ACCOUNT }}
 
+      - name: Configure AWS Credentials (OIDC)
+        if: inputs.ai_provider == 'claude-bedrock'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.aws_role_arn }}
+          aws-region: ${{ inputs.aws_region }}
+
       - uses: m3dev/dependahunt/.github/actions/analyzer@v1
         with:
           repository: ${{ github.repository }}
@@ -239,6 +256,7 @@ jobs:
           ai_model: ${{ inputs.ai_model }}
           vertex_project_id: ${{ inputs.vertex_project_id }}
           vertex_region: ${{ inputs.vertex_region }}
+          aws_region: ${{ inputs.aws_region }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
         env:

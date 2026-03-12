@@ -36,8 +36,8 @@ jobs:
     with:
       runs_on: '"ubuntu-latest"'
       event_name: ${{ github.event_name }}
-      ai_provider: 'claude-vertex' 
-      ai_model: 'claude-sonnet-4-5@20250929'
+      ai_provider: 'claude-vertex'
+      ai_model: 'claude-sonnet-4-6@default'
       vertex_project_id: '(your project id)'
       vertex_region: '(your region)'
       pr_creator: '(your Dependabot or Renovate bot name)'
@@ -59,10 +59,12 @@ jobs:
 |------------|------|------|
 | `event_name` | ○ | イベントタイプ判別用。通常は`${{ github.event_name }}`を指定すること。 |
 | `runs_on` | ○ | ワークフローを実行するランナーの指定（JSON文字列形式）。単一ランナーの場合は`'"ubuntu-latest"'`のようにダブルクォートで囲む。配列の場合は`'["self-hosted", "ubuntu"]'`のように配列形式で指定。 |
-| `ai_provider` | ○ | 使用するAIプロバイダ。指定可能な値: `claude-vertex`, `claude-direct`, `gemini-vertex`, `gemini-direct` |
-| `ai_model` | ○ | 使用するAIモデル。プロバイダに応じて適切なモデルを指定。例: `claude-sonnet-4-5@20250929`, `gemini-2.5-pro` |
+| `ai_provider` | ○ | 使用するAIプロバイダ。指定可能な値: `claude-vertex`, `claude-direct`, `claude-bedrock`, `gemini-vertex`, `gemini-direct` |
+| `ai_model` | ○ | 使用するAIモデル。プロバイダに応じて適切なモデルを指定。例: `claude-sonnet-4-6@default`（Vertex AI）, `us.anthropic.claude-sonnet-4-6`（Bedrock）, `gemini-2.5-pro` |
 | `vertex_project_id` | △ | Vertex AIを使用するGCPプロジェクトID。Vertex AI使用時（`ai_provider`が`claude-vertex`または`gemini-vertex`の場合）は必須。 |
 | `vertex_region` | △ | Vertex AIのGCPリージョン |
+| `aws_role_arn` | △ | AWS BedrockアクセスのためのIAMロールARN（例: `arn:aws:iam::123456789012:role/my-role`）。`ai_provider`が`claude-bedrock`の場合に必須。GitHub Actions OIDCによる認証を使用する。 |
+| `aws_region` | △ | AWS Bedrockのリージョン。`ai_provider`が`claude-bedrock`の場合に使用。デフォルトは`us-east-1`。 |
 | `pr_creator` | - | チェック対象にするPRの作成者名。ここで指定したユーザが作成したPRがチェック対象になる。デフォルトは `dependabot[bot]` |
 | `trigger_word` | - | PRコメントで分析を起動するトリガーワード。デフォルトは`/dependahunt` |
 
@@ -76,6 +78,31 @@ jobs:
 | `SERVICE_ACCOUNT` | △ | Vertex AIアクセス用のGCPサービスアカウント（例: `github-actions@project-id.iam.gserviceaccount.com`）。Vertex AI使用時は必須。 |
 | `ANTHROPIC_API_KEY` | △ | Anthropic APIキー（例: `sk-ant-api03-...`）。`ai_provider`が`claude-direct`の場合に必須。 |
 | `GEMINI_API_KEY` | △ | Google AI Studio APIキー（例: `AIzaSy...`）。`ai_provider`が`gemini-direct`の場合に必須。 |
+
+#### AWS Bedrock を使用する場合
+
+`ai_provider: 'claude-bedrock'` を指定する場合、GitHub Actions OIDCによるAWS認証を使用します。事前にAWS側でOIDC Providerの設定と、Bedrockへのアクセス権を持つIAMロールを作成してください。
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write  # OIDC認証に必要
+
+jobs:
+  run:
+    uses: m3dev/dependahunt/.github/workflows/analyze.yml@v1
+    with:
+      runs_on: '"ubuntu-latest"'
+      event_name: ${{ github.event_name }}
+      ai_provider: 'claude-bedrock'
+      ai_model: 'us.anthropic.claude-sonnet-4-6'
+      aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
+      aws_region: 'us-east-1'
+    secrets:
+      APP_ID: ${{ secrets.APP_ID }}
+      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+```
 
 ### `renovate.json`の編集（Renovateを利用する場合のみ）
 Renovateを使用する場合、PR本文内にパッケージ情報を埋め込む必要があります。`extends` に `github>m3dev/dependahunt#v1` を追加してください。

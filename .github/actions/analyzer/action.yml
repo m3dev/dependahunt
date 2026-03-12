@@ -30,7 +30,7 @@ inputs:
     required: false
     default: '.'
   ai_provider:
-    description: 'AI provider to use (claude-vertex/claude-direct/gemini-vertex/gemini-direct/openai)'
+    description: 'AI provider to use (claude-vertex/claude-direct/claude-bedrock/gemini-vertex/gemini-direct/openai)'
     required: false
     default: 'claude-vertex'
   ai_model:
@@ -57,6 +57,10 @@ inputs:
   openai_api_key:
     description: 'OpenAI API Key (required when ai_provider is openai)'
     required: false
+  aws_region:
+    description: 'AWS region for Bedrock (required when ai_provider is claude-bedrock)'
+    required: false
+    default: 'us-east-1'
 
 outputs:
   analysis_result:
@@ -83,6 +87,8 @@ runs:
 
     INPUT_VERTEX_REGION: ${{ inputs.vertex_region }}
     INPUT_VERTEX_PROJECT_ID: ${{ inputs.vertex_project_id }}
+
+    INPUT_AWS_REGION: ${{ inputs.aws_region }}
 
     # For Vertex AI authentication
     GOOGLE_APPLICATION_CREDENTIALS: $GOOGLE_APPLICATION_CREDENTIALS
