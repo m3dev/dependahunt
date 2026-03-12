@@ -94,7 +94,7 @@ class ClaudeCLIProvider(AIProvider):
         except subprocess.TimeoutExpired:
             raise RuntimeError(f"Claude CLIがタイムアウトしました（{timeout}秒）")
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Claude CLI実行エラー: returncode={e.returncode} stderr={e.stderr!r} stdout={e.stdout!r}")
+            raise RuntimeError(f"Claude CLI実行エラー: {e.stderr or e.stdout}")
         except FileNotFoundError:
             raise RuntimeError("Claude CLIが見つかりません。インストールされているか確認してください")
         except Exception as e:

@@ -245,7 +245,7 @@ jobs:
           role-to-assume: ${{ inputs.aws_role_arn }}
           aws-region: ${{ inputs.aws_region }}
 
-      - uses: m3-hd/dependahunt/.github/actions/analyzer@main
+      - uses: m3dev/dependahunt/.github/actions/analyzer@v1
         with:
           repository: ${{ github.repository }}
           pr_number: ${{ matrix.pr_number }}
