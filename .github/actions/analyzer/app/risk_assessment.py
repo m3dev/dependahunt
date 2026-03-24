@@ -9,6 +9,64 @@ from typing import Dict, Any, List
 from config import RISK_ICONS
 
 
+# リスクレベルの優先順位（数値が大きいほど高リスク）
+RISK_PRIORITY = {
+    "low": 1,
+    "medium": 2,
+    "high": 3,
+    "critical": 4
+}
+
+
+def normalize_risk_level(risk_text: str) -> str:
+    """リスクテキストを正規化してlow/medium/high/criticalに変換
+
+    Args:
+        risk_text: AI分析やextract_risk_from_ai_analysisから返されたリスク評価テキスト
+
+    Returns:
+        正規化されたリスクレベル (low/medium/high/critical)
+    """
+    risk_lower = risk_text.lower()
+
+    if "critical" in risk_lower or "緊急" in risk_lower or "🔴" in risk_text:
+        return "critical"
+    elif "高" in risk_text or "high" in risk_lower:
+        return "high"
+    elif "中" in risk_text or "medium" in risk_lower:
+        return "medium"
+    elif "低" in risk_text or "low" in risk_lower or "🟢" in risk_text:
+        return "low"
+
+    # デフォルトはmedium（安全側に倒す）
+    return "medium"
+
+
+def get_max_risk_level(risk_levels: List[str]) -> str:
+    """複数のリスクレベルから最大値を取得
+
+    Args:
+        risk_levels: リスクレベルのリスト
+
+    Returns:
+        最大のリスクレベル (low/medium/high/critical)
+    """
+    if not risk_levels:
+        return "low"
+
+    max_priority = 0
+    max_level = "low"
+
+    for level in risk_levels:
+        normalized = normalize_risk_level(level)
+        priority = RISK_PRIORITY.get(normalized, 0)
+        if priority > max_priority:
+            max_priority = priority
+            max_level = normalized
+
+    return max_level
+
+
 def extract_risk_from_ai_analysis(ai_analysis: str, vuln_data: List[Dict[str, Any]], cves: List[str]) -> str:
     """AI分析結果から結論部分を抽出"""
 
@@ -141,15 +199,8 @@ AI分析が正常に完了しませんでした。分析を再実行するか、
 
     risk_level = "未評価"
 
-    # 極低/ゼロリスク（最優先で判定）
-    if ("極低" in ai_analysis or "ゼロリスク" in ai_analysis or "ほぼゼロ" in ai_analysis or
-        "🟢 **極低リスク" in ai_analysis):
-        risk_level = "極低リスク"
-        icon = "🟢"
-        if debug_mode:
-            print("✅ DEBUG: 極低リスクを検出")
-    # 低リスク
-    elif ("**低**" in ai_analysis or "低リスク" in ai_analysis or
+    # 低リスク（ゼロリスクも含む）
+    if ("**低**" in ai_analysis or "低リスク" in ai_analysis or "ゼロリスク" in ai_analysis or "ほぼゼロ" in ai_analysis or
           "リスクレベル「低」" in ai_analysis or "リスクレベル：低" in ai_analysis or
           "LOW" in ai_analysis):
         risk_level = "低リスク"

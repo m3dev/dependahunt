@@ -182,7 +182,7 @@ def create_ai_analysis_prompt(vuln_data: List[Dict[str, Any]], version_info: Dic
 あなたの応答は必ず次の「---RISK_ASSESSMENT_START---」から「---RISK_ASSESSMENT_END---」までの構造化ヘッダーで開始してください。構造化ヘッダは必ずコメントアウト（<!-- 〜〜〜 -->）したうえで出力してください。この出力はPythonコードでパースされます。
 
 ---RISK_ASSESSMENT_START---
-RISK_LEVEL: [極低/低/中/高/Critical のいずれか]
+RISK_LEVEL: [低/中/高/Critical のいずれか]
 CONFIDENCE: [高/中/低]
 PRIMARY_REASON: [判定理由を1行（100文字以内）で簡潔に]
 ---RISK_ASSESSMENT_END---
@@ -191,7 +191,7 @@ PRIMARY_REASON: [判定理由を1行（100文字以内）で簡潔に]
 **ヘッダーの記入例（ここから）**:
 <!--
 ---RISK_ASSESSMENT_START---
-RISK_LEVEL: 極低
+RISK_LEVEL: 低
 CONFIDENCE: 高
 PRIMARY_REASON: 脆弱パッケージ未使用、既にパッチ適用済み、攻撃経路なし
 ---RISK_ASSESSMENT_END---
