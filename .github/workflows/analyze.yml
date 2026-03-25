@@ -48,6 +48,11 @@ on:
         type: string
         required: false
         default: '/dependahunt'
+      working_directory:
+        description: 'Working directory for code analysis (relative to workspace root)'
+        type: string
+        required: false
+        default: '.'
     secrets:
       APP_ID:
         required: true
@@ -252,6 +257,7 @@ jobs:
           additional_comment: ${{ needs.comment-trigger.outputs.additional_comment || needs.auto-scan.outputs.additional_comment }}
           include_previous: ${{ needs.comment-trigger.outputs.include_previous || needs.auto-scan.outputs.include_previous }}
           package_name: ${{ needs.comment-trigger.outputs.package_name || needs.auto-scan.outputs.package_name }}
+          working_directory: ${{ inputs.working_directory }}
           ai_provider: ${{ inputs.ai_provider }}
           ai_model: ${{ inputs.ai_model }}
           vertex_project_id: ${{ inputs.vertex_project_id }}
