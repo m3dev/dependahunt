@@ -82,7 +82,6 @@ if [ -n "$INPUT_WORKING_DIRECTORY" ] && [ "$INPUT_WORKING_DIRECTORY" != "." ]; t
     echo "Current directory: $(pwd)"
 fi
 
-cd "$GITHUB_WORKSPACE"
 # 脆弱性分析スクリプトを実行
 echo "Running vulnerability analysis..."
 eval python3 -u /app/vulnerability_analyzer.py "$INPUT_TARGET_REPOSITORY" "$INPUT_TARGET_PR_NUMBER" $FLAGS
