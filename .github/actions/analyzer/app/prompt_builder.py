@@ -165,6 +165,8 @@ def create_ai_analysis_prompt(vuln_data: List[Dict[str, Any]], version_info: Dic
 - 管理者権限でのみ到達可能な箇所での使用
 
 #### 低リスク条件
+- 脆弱な機能を利用していない
+- ユーザ入力値が脆弱な機能に渡されない
 - 完全に内部データのみで使用
 - 既に適切なバリデーション・サニタイズで保護済み
 
