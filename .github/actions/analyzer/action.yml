@@ -75,6 +75,7 @@ runs:
     INPUT_ADDITIONAL_COMMENT: ${{ inputs.additional_comment }}
     INPUT_INCLUDE_PREVIOUS: ${{ inputs.include_previous }}
     INPUT_PACKAGE_NAME: ${{ inputs.package_name }}
+    INPUT_WORKING_DIRECTORY: ${{ inputs.working_directory }}
 
     INPUT_AI_PROVIDER: ${{ inputs.ai_provider }}
     INPUT_AI_MODEL: ${{ inputs.ai_model }}
